@@ -1,0 +1,11 @@
+# local warehouse and build outputs (the warehouse lives in a GitHub release asset, not git)
+warehouse/
+build/
+target/
+dbt_packages/
+logs/
+.user.yml
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/

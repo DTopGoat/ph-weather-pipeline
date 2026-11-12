@@ -40,9 +40,9 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       INPUT_PAST_DAYS: ${{ inputs.past_days || '1' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -93,7 +93,7 @@ jobs:
           fi
           gh release upload "$WAREHOUSE_TAG" build/weather.duckdb.gz --clobber
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: build/site
 
@@ -111,7 +111,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 
   report:
     needs: [build, deploy]

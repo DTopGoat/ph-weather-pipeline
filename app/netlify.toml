@@ -1,0 +1,17 @@
+# Static app only. Netlify serves HTML/CSS/JS; the hourly data comes from GitHub Pages,
+# so the hourly pipeline never triggers a Netlify deploy.
+[build]
+  publish = "."
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://dtopgoat.github.io; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'none'"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Content-Type-Options = "nosniff"
+    Permissions-Policy = "geolocation=(), camera=(), microphone=()"
+
+[[headers]]
+  for = "/vendor/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

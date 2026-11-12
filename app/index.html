@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PH Weather &amp; Air Quality · Live Data Pipeline</title>
+  <meta name="description" content="Live hourly weather and air quality for six Philippine cities, powered by a Python + DuckDB + dbt pipeline orchestrated with GitHub Actions.">
+  <meta name="theme-color" content="#0b1d3a">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" width="28" height="28"><circle cx="12" cy="13" r="6" fill="#ffc94d"/><path d="M9 25h14a5 5 0 0 0 0-10 7 7 0 0 0-13.4 2A4 4 0 0 0 9 25z" fill="#e8f1ff"/></svg>
+        </span>
+        <div>
+          <h1>PH Weather &amp; Air Quality</h1>
+          <p class="sub">A live data engineering project · refreshed hourly</p>
+        </div>
+      </div>
+      <nav class="toplinks">
+        <a href="#health">Pipeline health</a>
+        <a href="#how">How it works</a>
+        <a id="repo-link" href="https://github.com/DTopGoat/ph-weather-pipeline" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="city-picker" aria-label="Choose a city">
+      <div id="city-chips" class="chips" role="tablist"></div>
+      <label class="select-label">City
+        <select id="city-select"></select>
+      </label>
+    </section>
+
+    <div id="error" class="error" hidden></div>
+
+    <section class="hero card" aria-live="polite">
+      <div class="hero-main">
+        <div class="hero-place">
+          <h2 id="city-name">Loading…</h2>
+          <p id="city-region" class="muted"></p>
+          <p id="obs-time" class="muted small"></p>
+        </div>
+        <div class="hero-temp">
+          <span id="wx-icon" class="wx-icon" aria-hidden="true"></span>
+          <span id="temp" class="temp">--</span>
+        </div>
+        <p id="wx-desc" class="wx-desc"></p>
+      </div>
+      <div class="hero-stats">
+        <div class="stat"><span class="label">Feels like</span><span id="feels" class="value">--</span></div>
+        <div class="stat"><span class="label">Humidity</span><span id="humidity" class="value">--</span></div>
+        <div class="stat"><span class="label">Wind</span><span id="wind" class="value">--</span></div>
+        <div class="stat"><span class="label">Rain (this hour)</span><span id="precip" class="value">--</span></div>
+      </div>
+    </section>
+
+    <section class="grid-2">
+      <div class="card band-card">
+        <div class="card-head"><h3>Air quality</h3><span class="muted small">US AQI · PM2.5 · PM10</span></div>
+        <div class="band-body">
+          <div id="aqi-dial" class="dial"><span id="aqi-value">--</span><small>AQI</small></div>
+          <div>
+            <p id="aqi-cat" class="band-cat">--</p>
+            <p id="aqi-advice" class="muted small"></p>
+            <p class="small">PM2.5 <strong id="pm25">--</strong> µg/m³ · PM10 <strong id="pm10">--</strong> µg/m³</p>
+          </div>
+        </div>
+        <div class="scale" id="aqi-scale"></div>
+      </div>
+      <div class="card band-card">
+        <div class="card-head"><h3>Heat index</h3><span class="muted small">PAGASA classification</span></div>
+        <div class="band-body">
+          <div id="hi-dial" class="dial"><span id="hi-value">--</span><small>°C</small></div>
+          <div>
+            <p id="hi-cat" class="band-cat">--</p>
+            <p id="hi-advice" class="muted small"></p>
+            <p class="small">Today's peak <strong id="hi-peak">--</strong></p>
+          </div>
+        </div>
+        <div class="scale" id="hi-scale"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h3>7-day forecast</h3><span class="muted small">Asia/Manila days</span></div>
+      <div id="forecast" class="forecast"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h3>Temperature &amp; heat index</h3>
+        <span class="muted small">Past 7 days and next 7 days · shaded area is forecast</span>
+      </div>
+      <div id="chart-temp" class="chart"></div>
+    </section>
+
+    <section class="grid-2">
+      <div class="card">
+        <div class="card-head"><h3>Rainfall</h3><span class="muted small">mm per hour</span></div>
+        <div id="chart-rain" class="chart chart-sm"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Air quality trend</h3><span class="muted small">US AQI and PM2.5</span></div>
+        <div id="chart-aqi" class="chart chart-sm"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h3>Daily history</h3><span class="muted small">Gold daily rollup, all retained days</span></div>
+      <div id="chart-daily" class="chart chart-sm"></div>
+    </section>
+
+    <section id="health" class="card health">
+      <div class="card-head">
+        <h3>Pipeline health</h3>
+        <span id="health-pill" class="pill">checking…</span>
+      </div>
+      <div class="health-grid">
+        <div class="hstat"><span class="label">Last run (Manila)</span><span id="h-last" class="value">--</span><span id="h-ago" class="muted small"></span></div>
+        <div class="hstat"><span class="label">Last run (UTC)</span><span id="h-last-utc" class="value">--</span></div>
+        <div class="hstat"><span class="label">Rows loaded this run</span><span id="h-rows" class="value">--</span><span class="muted small">weather + air quality</span></div>
+        <div class="hstat"><span class="label">Data tests</span><span id="h-tests" class="value">--</span><span id="h-tests-sub" class="muted small"></span></div>
+        <div class="hstat"><span class="label">Source freshness</span><span id="h-fresh" class="value">--</span><span id="h-fresh-sub" class="muted small"></span></div>
+        <div class="hstat"><span class="label">Run</span><a id="h-run" class="value small-link" href="#" target="_blank" rel="noopener">--</a></div>
+      </div>
+      <div class="layers" id="h-layers"></div>
+      <div class="card-head sub-head"><h4>Recent runs</h4><span class="muted small">rows appended to Bronze per run</span></div>
+      <div id="chart-runs" class="chart chart-xs"></div>
+      <details class="dq">
+        <summary>Data quality results (<span id="dq-count">0</span> checks)</summary>
+        <div class="table-wrap"><table><thead><tr><th>Check</th><th>Type</th><th>Status</th><th>Failures</th></tr></thead><tbody id="dq-body"></tbody></table></div>
+      </details>
+    </section>
+
+    <section id="how" class="card how">
+      <div class="card-head"><h3>How it works</h3></div>
+      <ol class="flow">
+        <li><strong>Ingest</strong><span>Python pulls hourly weather and air quality for 6 cities from the free Open-Meteo APIs, with retries and backoff, and appends the raw rows to <em>Bronze</em> in DuckDB.</span></li>
+        <li><strong>Transform</strong><span>dbt builds <em>Silver</em> with an incremental model that keeps the latest record per city and hour, using a watermark with a lookback window, then <em>Gold</em> marts with AQI and heat index bands.</span></li>
+        <li><strong>Test</strong><span>dbt tests (unique keys, not-null, accepted values and ranges), source freshness and a Bronze-to-Gold row-count reconciliation. Results feed this panel.</span></li>
+        <li><strong>Publish</strong><span>Gold is exported to small JSON files and published by GitHub Actions every hour. A failed run opens a GitHub issue.</span></li>
+      </ol>
+      <p class="muted small">Stack: Python · DuckDB · dbt · sqlfluff · pytest · GitHub Actions · Plotly. Running cost: ₱0.</p>
+    </section>
+  </main>
+
+  <footer class="wrap footer">
+    <p>Built by Clint Aguilar. Weather and air-quality data by <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a> (CC BY 4.0). Hourly values are model data, not official PAGASA observations.</p>
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="vendor/plotly-basic-2.35.2.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

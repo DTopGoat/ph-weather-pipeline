@@ -127,6 +127,14 @@ def export(db_path, out_dir, target_dir, ingest_summary_path, now=None):
         cols, cities = query(con, "select * from gold.dim_city order by latitude desc")
         write(os.path.join(out_dir, "cities.json"), [dict(zip(cols, r)) for r in cities])
 
+        reference = {}
+        for name, table, order in [("aqi_bands", "ref.aqi_bands", "aqi_band_order"),
+                                   ("heat_index_bands", "ref.heat_index_bands", "heat_band_order"),
+                                   ("weather_codes", "ref.weather_codes", "weather_code")]:
+            rcols, rrows = query(con, f"select * from {table} order by {order}")
+            reference[name] = [dict(zip(rcols, r)) for r in rrows]
+        write(os.path.join(out_dir, "reference.json"), reference)
+
         latest_loaded = con.execute("select max(loaded_at) from gold.fct_weather_hourly").fetchone()[0]
 
         # Current conditions: the latest non-forecast hour per city.

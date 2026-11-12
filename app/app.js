@@ -6,13 +6,13 @@
     clear: "☀️", "mostly-clear": "🌤️", "partly-cloudy": "⛅", overcast: "☁️", fog: "🌫️",
     drizzle: "🌦️", rain: "🌧️", "heavy-rain": "🌧️", showers: "🌦️", snow: "❄️", thunder: "⛈️",
   };
-  const state = { cities: [], current: {}, reference: null, health: null, cityData: {}, selected: null };
+  const state = { cities: [], current: {}, reference: null, cityData: {}, selected: null };
 
   const $ = (id) => document.getElementById(id);
   const fmt1 = (v) => (v === null || v === undefined ? "--" : Number(v).toFixed(1));
   const fmt0 = (v) => (v === null || v === undefined ? "--" : Math.round(Number(v)).toString());
 
-  // Gold JSON is republished hourly; bucket the cache-buster to 5 minutes so CDN caches still help.
+  // Data is republished hourly; bucket the cache-buster to 5 minutes so CDN caches still help.
   const bust = () => Math.floor(Date.now() / 300000);
   async function getJSON(path) {
     const res = await fetch(`${CFG.dataBase}/${path}?v=${bust()}`, { cache: "no-store" });
@@ -45,13 +45,6 @@
   function band(bands, value, minKey, maxKey) {
     if (value === null || value === undefined) return null;
     return bands.find((b) => value >= b[minKey] && value < b[maxKey]) || null;
-  }
-  function timeAgo(iso) {
-    const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
-    if (mins < 1) return "just now";
-    if (mins < 60) return `${mins} min ago`;
-    const h = Math.floor(mins / 60);
-    return `${h} h ${mins % 60} min ago`;
   }
   function showError(msg) {
     const el = $("error");
@@ -236,74 +229,20 @@
     }), plotCfg);
   }
 
-  // ---------- pipeline health ----------
-  function renderHealth() {
-    const h = state.health;
-    const pill = $("health-pill");
-    const ageMin = (Date.now() - new Date(h.last_run_utc).getTime()) / 60000;
-    let cls = h.status === "healthy" ? "ok" : "bad";
-    let label = h.status === "healthy" ? "Healthy" : "Degraded";
-    if (h.status === "healthy" && ageMin > 150) { cls = "warn"; label = "Stale (no recent run)"; }
-    pill.className = `pill ${cls}`;
-    pill.textContent = label;
-
-    const lm = new Date(h.last_run_utc);
-    $("h-last").textContent = lm.toLocaleString("en-PH", { timeZone: "Asia/Manila", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) + " PHT";
-    $("h-ago").textContent = timeAgo(h.last_run_utc);
-    $("h-last-utc").textContent = h.last_run_utc.replace("T", " ").replace("Z", " UTC");
-    $("h-rows").textContent = `${(h.rows_loaded.weather + h.rows_loaded.air_quality).toLocaleString()}`;
-    const t = h.tests;
-    const total = t.pass + t.fail + t.warn + t.error;
-    $("h-tests").textContent = `${t.pass}/${total} passed`;
-    $("h-tests-sub").textContent = `${t.fail} failed · ${t.warn} warnings · ${t.error} errors`;
-    $("h-fresh").textContent = h.freshness.status.toUpperCase();
-    const ages = h.freshness.sources.map((s) => s.age_minutes);
-    $("h-fresh-sub").textContent = ages.length ? `newest Bronze load ${Math.max(...ages)} min old at check time` : "";
-    const run = $("h-run");
-    if (h.github_run_url) { run.href = h.github_run_url; run.textContent = "View GitHub Actions run ↗"; }
-    else { run.removeAttribute("href"); run.textContent = h.run_id || "manual"; }
-
-    const c = h.layer_row_counts;
-    $("h-layers").innerHTML = `
-      <div class="layer bronze"><h5>Bronze</h5><div class="n">${(c.bronze_weather + c.bronze_air_quality).toLocaleString()}</div><p>raw API rows, append-only (14-day window)</p></div>
-      <div class="layer silver"><h5>Silver</h5><div class="n">${(c.silver_weather + c.silver_air_quality).toLocaleString()}</div><p>typed, one row per city + hour</p></div>
-      <div class="layer gold"><h5>Gold</h5><div class="n">${c.gold_hourly.toLocaleString()} · ${c.gold_daily.toLocaleString()}</div><p>hourly fact · daily rollup</p></div>`;
-
-    const runs = h.recent_runs.slice().reverse();
-    Plotly.react("chart-runs", [{
-      x: runs.map((r) => r.finished_at_utc.replace(" ", "T") + "Z"),
-      y: runs.map((r) => r.weather_rows + r.air_quality_rows),
-      type: "bar", marker: { color: runs.map((r) => (r.status === "success" ? "#1a9e55" : "#d64545")) },
-      hovertemplate: "%{y} rows<extra></extra>",
-    }], Object.assign(baseLayout(), { margin: { l: 44, r: 16, t: 4, b: 28 }, showlegend: false, hovermode: "closest" }), plotCfg);
-  }
-
-  async function renderDQ() {
-    try {
-      const dq = await getJSON("dq_results.json");
-      $("dq-count").textContent = dq.results.length;
-      $("dq-body").innerHTML = dq.results.map((r) =>
-        `<tr><td>${r.test_name}</td><td>${r.test_type}</td><td class="st-${r.status}">${r.status}</td><td>${r.failures}</td></tr>`).join("");
-    } catch (e) { /* the health panel already shows totals */ }
-  }
-
   // ---------- boot ----------
   async function init() {
     try {
-      const [cities, current, reference, health] = await Promise.all([
-        getJSON("cities.json"), getJSON("current.json"), getJSON("reference.json"), getJSON("pipeline_health.json"),
+      const [cities, current, reference] = await Promise.all([
+        getJSON("cities.json"), getJSON("current.json"), getJSON("reference.json"),
       ]);
       state.cities = cities;
       current.forEach((c) => (state.current[c.city_id] = c));
       state.reference = reference;
-      state.health = health;
     } catch (err) {
-      showError(`Could not load pipeline data (${err.message}). The hourly job may be mid-publish; try again in a minute.`);
+      showError(`Could not load weather data (${err.message}). Please try again in a minute.`);
       return;
     }
     renderPicker();
-    renderHealth();
-    renderDQ();
     const fromHash = (location.hash.match(/city=([a-z_]+)/) || [])[1];
     const first = state.cities.some((c) => c.city_id === fromHash) ? fromHash : (state.cities.find((c) => c.city_id === "quezon_city") || state.cities[0]).city_id;
     selectCity(first);

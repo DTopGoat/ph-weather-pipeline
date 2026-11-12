@@ -2,9 +2,10 @@
 
 A small but complete, **live** data engineering project: every hour it ingests weather and
 air-quality data for six Philippine cities, models it with dbt into Bronze / Silver / Gold
-layers, tests it, and publishes the Gold layer as JSON that powers a weather app.
+layers, tests it, and publishes the Gold layer as JSON that powers **Thy Weather**, a public weather app.
 
-- **Live app:** https://ph-weather-pipeline.netlify.app/
+- **Live app (Thy Weather):** https://thy-weather.netlify.app/
+- **Project write-up with live pipeline health:** https://clint-data-analytics-portfolio.netlify.app/#pipelines
 - **Hourly data endpoint (GitHub Pages):** https://dtopgoat.github.io/ph-weather-pipeline/
 - **Stack:** Python · DuckDB · dbt (dbt-duckdb) · sqlfluff · pytest · GitHub Actions · Plotly
 - **Running cost:** PHP 0 (free Open-Meteo APIs, GitHub Actions on a public repo, GitHub Pages, Netlify free plan)
@@ -24,8 +25,8 @@ flowchart LR
   T -->|pass| X[export_gold.py<br/>JSON + pipeline_health.json]
   T -->|fail| F[GitHub issue opened/updated]
   X --> P[GitHub Pages<br/>data endpoint]
-  P -->|fetch, CORS| W[Weather app on Netlify]
-  W --> PF[Portfolio project card]
+  P -->|fetch, CORS| W[Thy Weather app on Netlify]
+  P -->|pipeline_health.json| PF[Portfolio: Data Pipeline Projects]
   DB[(DuckDB file<br/>release asset)] <-->|restore / save each run| I
 ```
 
@@ -77,8 +78,9 @@ past every hour.
   city × hour key in Bronze appears exactly once in Silver, and that Gold has exactly as many rows as
   Silver.
 
-The health panel in the app shows the last run time (UTC and Manila), rows loaded, test pass/fail
-counts, freshness, row counts per layer and the last 48 runs.
+`pipeline_health.json` records the last run time (UTC and Manila), rows loaded, test pass/fail
+counts, freshness, row counts per layer and the last 48 runs. The portfolio's Data Pipeline Projects
+section reads it live; the weather app itself shows weather only.
 
 ## Storage choice: DuckDB file as a release asset
 
@@ -101,12 +103,16 @@ backfill up to 92 days; see the runbook).
 
 ## Hosting: why the app is on Netlify and the data is on GitHub Pages
 
+The app is **Thy Weather** (https://thy-weather.netlify.app/). It shows weather only; all pipeline
+details live in this README and on the portfolio.
+
 The app (HTML/CSS/JS + vendored Plotly) is deployed to Netlify **manually and rarely**, only when the
 front end changes. The hourly job publishes data only to GitHub Pages, which serves files with
 `Access-Control-Allow-Origin: *`. Netlify's free plan has a monthly deploy budget, so hourly Netlify
 deploys would exhaust it within a day; this split avoids that entirely. The Netlify site is not linked
 to this repository, so no push triggers a Netlify build. The app's CSP allows `connect-src` only to
-`'self'` and `https://dtopgoat.github.io`.
+`'self'` and `https://dtopgoat.github.io`. The portfolio's CSP allows the same origin so it can
+show live pipeline health.
 
 To redeploy the app after a front-end change: `netlify deploy --prod --dir app --site <site-id>`.
 
@@ -132,8 +138,8 @@ pytest -q && sqlfluff lint models data_tests
   incremental Silver models pick it up because it is newly loaded. For a clean rebuild of Silver, also
   tick `full_refresh` (note that only Bronze's retained 14-day window plus the backfilled days survive).
 - **When a run fails:** the `report` job opens an issue labelled `pipeline-failure` (or comments on
-  the open one) with the run link. The app keeps serving the last successful data and its health panel
-  turns "Stale" after about 2.5 hours. When a later run succeeds, the issue is closed automatically.
+  the open one) with the run link. The app keeps serving the last successful data, and the pipeline status
+  is marked "Stale" on the portfolio after about 2.5 hours. When a later run succeeds, the issue is closed automatically.
   Common causes: an Open-Meteo outage (ingest retries 3 times with backoff and the next hourly run
   usually recovers), a failing range test after an upstream data change (inspect the test in the run
   log; `dq_results.json` lists every check), or a GitHub Pages deploy hiccup (rerun).

@@ -2,8 +2,9 @@ name: Hourly pipeline
 
 on:
   schedule:
-    # 17 minutes past every hour (off the top of the hour, when GitHub's scheduler is busiest)
-    - cron: "17 * * * *"
+    # Hourly at 17 minutes past (UTC; same minute in Manila). Off the top of the hour,
+    # when GitHub's scheduler is busiest and most likely to delay or drop runs.
+    - cron: '17 * * * *'
   workflow_dispatch:
     inputs:
       past_days:

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PH Weather Pipeline · data endpoint</title>
+  <style>body{font:16px/1.6 system-ui,sans-serif;max-width:640px;margin:48px auto;padding:0 16px;color:#12213b}code{background:#eef2f8;padding:2px 6px;border-radius:4px}a{color:#2f7bf5}</style>
+</head>
+<body>
+  <h1>PH Weather &amp; Air Quality Pipeline</h1>
+  <p>This GitHub Pages site is the <strong>hourly data endpoint</strong> for the pipeline. The app lives at
+    <a href="https://ph-weather-pipeline.netlify.app/">ph-weather-pipeline.netlify.app</a>.</p>
+  <p>Published Gold files (refreshed every hour by GitHub Actions):</p>
+  <ul>
+    <li><a href="data/pipeline_health.json"><code>data/pipeline_health.json</code></a> – last run, rows loaded, tests, freshness</li>
+    <li><a href="data/current.json"><code>data/current.json</code></a> – latest observed hour per city</li>
+    <li><a href="data/cities.json"><code>data/cities.json</code></a>, <a href="data/reference.json"><code>data/reference.json</code></a></li>
+    <li><code>data/city/&lt;city_id&gt;.json</code> – hourly (past 7 days + forecast) and daily rollups</li>
+    <li><a href="data/dq_results.json"><code>data/dq_results.json</code></a> – data quality results for the last run</li>
+  </ul>
+  <p>Source: <a href="https://github.com/DTopGoat/ph-weather-pipeline">github.com/DTopGoat/ph-weather-pipeline</a>.
+    Data by <a href="https://open-meteo.com/">Open-Meteo.com</a> (CC BY 4.0).</p>
+</body>
+</html>

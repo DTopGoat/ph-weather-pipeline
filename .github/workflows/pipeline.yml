@@ -1,0 +1,158 @@
+name: Hourly pipeline
+
+on:
+  schedule:
+    # 17 minutes past every hour (off the top of the hour, when GitHub's scheduler is busiest)
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      past_days:
+        description: "Days of recent history to request from Open-Meteo (1 = normal, up to 92 for a backfill)"
+        default: "1"
+        required: true
+      full_refresh:
+        description: "Rebuild Silver from scratch (only Bronze's retained window survives)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write   # save the DuckDB warehouse as a release asset
+  pages: write      # publish Gold JSON to GitHub Pages
+  id-token: write   # required by actions/deploy-pages
+  issues: write     # open / update / close the failure issue
+  actions: write    # keep the schedule enabled
+
+concurrency:
+  group: hourly-pipeline
+  cancel-in-progress: false
+
+env:
+  DUCKDB_PATH: warehouse/weather.duckdb
+  DBT_PROFILES_DIR: .
+  WAREHOUSE_TAG: warehouse-state
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      INPUT_PAST_DAYS: ${{ inputs.past_days || '1' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore warehouse (DuckDB file from the last successful run)
+        run: |
+          mkdir -p warehouse build
+          if gh release download "$WAREHOUSE_TAG" --pattern weather.duckdb.gz --dir warehouse; then
+            gunzip -f warehouse/weather.duckdb.gz
+            ls -lh warehouse
+            echo "PAST_DAYS=$INPUT_PAST_DAYS" >> "$GITHUB_ENV"
+          else
+            echo "No saved warehouse yet; starting fresh with a 7-day backfill."
+            echo "PAST_DAYS=7" >> "$GITHUB_ENV"
+          fi
+
+      - name: Ingest to Bronze (with retries)
+        run: |
+          for attempt in 1 2 3; do
+            python -m ingest.fetch --past-days "$PAST_DAYS" && exit 0
+            echo "Ingest attempt $attempt failed"; sleep $((attempt * 30))
+          done
+          exit 1
+
+      - name: dbt build (seeds, Silver, Gold, tests)
+        run: |
+          if [ "${{ inputs.full_refresh }}" = "true" ]; then dbt build --full-refresh; else dbt build; fi
+
+      - name: Source freshness
+        run: dbt source freshness || echo "FRESHNESS_FAILED=1" >> "$GITHUB_ENV"
+
+      - name: Export Gold to JSON
+        run: |
+          python -m scripts.export_gold --out build/site/data
+          cp pages/index.html build/site/index.html
+          touch build/site/.nojekyll
+
+      - name: Save warehouse as release asset
+        run: |
+          gzip -c "$DUCKDB_PATH" > build/weather.duckdb.gz
+          ls -lh build/weather.duckdb.gz
+          if ! gh release view "$WAREHOUSE_TAG" > /dev/null 2>&1; then
+            gh release create "$WAREHOUSE_TAG" --title "Warehouse state (auto-updated)" --latest=false \
+              --notes "DuckDB warehouse persisted between hourly runs. Overwritten every run; not a software release."
+          fi
+          gh release upload "$WAREHOUSE_TAG" build/weather.duckdb.gz --clobber
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/site
+
+      - name: Fail if source freshness errored
+        if: env.FRESHNESS_FAILED == '1'
+        run: |
+          echo "::error::Source freshness check failed (Bronze is older than the error threshold)."
+          exit 1
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  report:
+    needs: [build, deploy]
+    if: always()
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Open or update failure issue
+        if: needs.build.result == 'failure' || needs.deploy.result == 'failure'
+        run: |
+          gh label create pipeline-failure --repo "$GITHUB_REPOSITORY" --color d73a4a \
+            --description "Opened automatically by the hourly pipeline" 2>/dev/null || true
+          body="The hourly pipeline failed at $(date -u '+%Y-%m-%d %H:%M UTC') ($(TZ=Asia/Manila date '+%Y-%m-%d %H:%M') Manila).
+
+          - build: ${{ needs.build.result }}
+          - deploy: ${{ needs.deploy.result }}
+          - run: $RUN_URL
+
+          The app keeps showing the last successful data until a run succeeds. See the runbook in the README."
+          existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --label pipeline-failure --state open --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "$body"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --label pipeline-failure \
+              --title "Hourly pipeline failing" --body "$body"
+          fi
+
+      - name: Close failure issue after recovery
+        if: needs.build.result == 'success' && needs.deploy.result == 'success'
+        run: |
+          for n in $(gh issue list --repo "$GITHUB_REPOSITORY" --label pipeline-failure --state open --json number --jq '.[].number'); do
+            gh issue close "$n" --repo "$GITHUB_REPOSITORY" --comment "Recovered: $RUN_URL succeeded."
+          done
+
+      - name: Keep the schedule enabled (weekly)
+        # GitHub disables scheduled workflows after 60 days without repository activity.
+        # Re-enabling through the API once a week is a best-effort keepalive that needs no commits.
+        if: github.event_name == 'schedule'
+        run: |
+          if [ "$(date -u +%u%H)" = "700" ]; then
+            gh api -X PUT "repos/$GITHUB_REPOSITORY/actions/workflows/pipeline.yml/enable" && echo "keepalive sent"
+          fi

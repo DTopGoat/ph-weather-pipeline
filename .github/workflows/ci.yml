@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    paths-ignore: ["**.md"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DUCKDB_PATH: warehouse/ci.duckdb
+      DBT_PROFILES_DIR: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+
+      - name: Unit tests
+        run: pytest -q
+
+      - name: Ingest a small live sample into a throwaway warehouse
+        run: mkdir -p warehouse && python -m ingest.fetch --past-days 1 --forecast-days 2
+
+      - name: dbt build (twice, to exercise the incremental path)
+        run: |
+          dbt build
+          python -m ingest.fetch --past-days 1 --forecast-days 2
+          dbt build
+
+      - name: sqlfluff lint
+        run: sqlfluff lint models data_tests
+
+      - name: Export smoke test
+        run: |
+          dbt source freshness
+          python -m scripts.export_gold --out build/site/data
+          python -c "import json; h=json.load(open('build/site/data/pipeline_health.json')); print(h['status'], h['tests']); assert h['tests']['fail']==0"

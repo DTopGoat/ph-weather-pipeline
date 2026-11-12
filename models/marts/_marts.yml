@@ -1,0 +1,61 @@
+version: 2
+
+models:
+  - name: dim_city
+    description: Cities tracked by the pipeline.
+    columns:
+      - name: city_id
+        data_tests: [unique, not_null]
+      - name: island_group
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['Luzon', 'Visayas', 'Mindanao']
+
+  - name: fct_weather_hourly
+    description: Gold hourly fact. One row per city and local hour, history plus forecast.
+    data_tests:
+      - unique_combination:
+          combination: [city_id, observed_at_local]
+    columns:
+      - name: city_id
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('dim_city')
+              field: city_id
+      - name: observed_at_local
+        data_tests: [not_null]
+      - name: is_forecast
+        data_tests: [not_null]
+      - name: temperature_c
+        data_tests:
+          - not_null
+          - accepted_range: {min_value: -5, max_value: 50}
+      - name: heat_index_c
+        data_tests:
+          - accepted_range: {min_value: -10, max_value: 70}
+      - name: heat_category
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Not hazardous', 'Caution', 'Extreme Caution', 'Danger', 'Extreme Danger']
+      - name: aqi_category
+        description: US EPA AQI category. Null only for forecast hours beyond the air-quality horizon.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['Good', 'Moderate', 'Unhealthy for Sensitive Groups', 'Unhealthy', 'Very Unhealthy', 'Hazardous']
+
+  - name: fct_weather_daily
+    description: Gold daily rollup per city and Manila calendar day.
+    data_tests:
+      - unique_combination:
+          combination: [city_id, observed_date_local]
+    columns:
+      - name: hours_observed
+        data_tests:
+          - accepted_range: {min_value: 1, max_value: 24}
+      - name: temp_min_c
+        data_tests: [not_null]

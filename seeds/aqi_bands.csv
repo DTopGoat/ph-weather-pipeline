@@ -1,0 +1,7 @@
+aqi_band_order,aqi_category,aqi_min,aqi_max_exclusive,aqi_color,health_advice
+1,Good,0,51,#00e400,Air quality is satisfactory.
+2,Moderate,51,101,#ffff00,Unusually sensitive people should limit prolonged outdoor exertion.
+3,Unhealthy for Sensitive Groups,101,151,#ff7e00,"Children, older adults and people with lung or heart conditions should reduce outdoor exertion."
+4,Unhealthy,151,201,#ff0000,Everyone should reduce prolonged outdoor exertion.
+5,Very Unhealthy,201,301,#8f3f97,Everyone should avoid prolonged outdoor exertion.
+6,Hazardous,301,100000,#7e0023,Everyone should avoid all outdoor activity.

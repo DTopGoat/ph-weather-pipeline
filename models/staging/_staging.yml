@@ -1,0 +1,51 @@
+version: 2
+
+models:
+  - name: stg_weather_hourly
+    description: Silver weather, one row per city and local hour (latest load wins).
+    data_tests:
+      - unique_combination:
+          combination: [city_id, observed_at_local]
+    columns:
+      - name: city_id
+        data_tests: [not_null]
+      - name: observed_at_local
+        description: Hour in Asia/Manila local time (UTC+8, no DST).
+        data_tests: [not_null]
+      - name: temperature_c
+        data_tests:
+          - accepted_range: {min_value: -5, max_value: 50}
+      - name: relative_humidity_pct
+        data_tests:
+          - accepted_range: {min_value: 0, max_value: 100}
+      - name: precipitation_mm
+        data_tests:
+          - accepted_range: {min_value: 0, max_value: 300}
+      - name: wind_speed_kmh
+        data_tests:
+          - accepted_range: {min_value: 0, max_value: 400}
+      - name: weather_code
+        data_tests:
+          - relationships:
+              to: ref('weather_codes')
+              field: weather_code
+
+  - name: stg_air_quality_hourly
+    description: Silver air quality, one row per city and local hour (latest load wins).
+    data_tests:
+      - unique_combination:
+          combination: [city_id, observed_at_local]
+    columns:
+      - name: city_id
+        data_tests: [not_null]
+      - name: observed_at_local
+        data_tests: [not_null]
+      - name: pm2_5_ugm3
+        data_tests:
+          - accepted_range: {min_value: 0, max_value: 1000}
+      - name: pm10_ugm3
+        data_tests:
+          - accepted_range: {min_value: 0, max_value: 2000}
+      - name: us_aqi
+        data_tests:
+          - accepted_range: {min_value: 0, max_value: 500}

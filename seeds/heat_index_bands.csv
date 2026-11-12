@@ -1,0 +1,6 @@
+heat_band_order,heat_category,heat_index_min_c,heat_index_max_exclusive_c,heat_color,advice
+0,Not hazardous,-100,27,#4caf50,No heat index warning.
+1,Caution,27,33,#ffeb3b,Fatigue is possible with prolonged exposure and activity.
+2,Extreme Caution,33,42,#ff9800,Heat cramps and heat exhaustion are possible.
+3,Danger,42,52,#f44336,Heat cramps and heat exhaustion are likely; heat stroke is probable with continued exposure.
+4,Extreme Danger,52,1000,#7b1fa2,Heat stroke is imminent.

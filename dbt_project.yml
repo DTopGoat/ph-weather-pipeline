@@ -1,0 +1,28 @@
+name: ph_weather
+version: "1.0.0"
+config-version: 2
+profile: ph_weather
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+test-paths: ["data_tests"]
+target-path: target
+clean-targets: [target, dbt_packages]
+
+vars:
+  # Incremental watermark lookback for Silver. Rows loaded into Bronze within this many
+  # hours of the newest Silver load are reprocessed, so late or re-run loads are never skipped.
+  lookback_hours: 3
+
+models:
+  ph_weather:
+    staging:
+      +schema: silver
+    marts:
+      +schema: gold
+      +materialized: table
+
+seeds:
+  ph_weather:
+    +schema: ref

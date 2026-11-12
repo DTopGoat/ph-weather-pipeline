@@ -1,0 +1,36 @@
+version: 2
+
+sources:
+  - name: bronze
+    description: Raw, append-only API payloads written by ingest/fetch.py. One row per city, hour and load.
+    schema: bronze
+    loaded_at_field: loaded_at
+    freshness:
+      warn_after: {count: 2, period: hour}
+      error_after: {count: 6, period: hour}
+    tables:
+      - name: raw_weather_hourly
+        description: Open-Meteo forecast API hourly block (recent past hours + 7-day forecast), as received.
+        columns:
+          - name: run_id
+            data_tests: [not_null]
+          - name: loaded_at
+            data_tests: [not_null]
+          - name: city_id
+            data_tests:
+              - not_null
+              - relationships:
+                  to: ref('cities')
+                  field: city_id
+          - name: local_time
+            data_tests: [not_null]
+      - name: raw_air_quality_hourly
+        description: Open-Meteo air-quality API hourly block (PM2.5, PM10, US AQI), as received.
+        columns:
+          - name: city_id
+            data_tests: [not_null]
+          - name: local_time
+            data_tests: [not_null]
+      - name: ingest_runs
+        description: One row per successful ingest run (audit log).
+        freshness: null

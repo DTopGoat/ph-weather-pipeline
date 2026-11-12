@@ -1,0 +1,7 @@
+city_id,city_name,region,island_group,latitude,longitude
+baguio,Baguio,CAR,Luzon,16.4023,120.5960
+quezon_city,Quezon City (Metro Manila),NCR,Luzon,14.6760,121.0437
+cebu,Cebu City,Central Visayas,Visayas,10.3157,123.8854
+davao,Davao City,Davao Region,Mindanao,7.1907,125.4553
+iloilo,Iloilo City,Western Visayas,Visayas,10.7202,122.5621
+cagayan_de_oro,Cagayan de Oro,Northern Mindanao,Mindanao,8.4542,124.6319
